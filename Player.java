@@ -105,7 +105,6 @@ public class Player {
 			public void run() {
 				try {
 					playerOffline(name);
-					//deleteRecursive
 					conn.close();
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -138,7 +137,6 @@ public class Player {
 			 * Automated Mode
 			 */
 			else {// its a score post
-
 				int count = Integer.parseInt(args[2]);
 				int delay = Integer.parseInt(args[3]);
 				int score = Integer.parseInt(args[4]);
