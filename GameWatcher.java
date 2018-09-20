@@ -14,7 +14,7 @@ import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 
-public class GameWatcher implements Watcher {
+public class GameWatcher {
 
 	// create static instance for zookeeper class.
 	private static ZooKeeper zk;
@@ -24,10 +24,11 @@ public class GameWatcher implements Watcher {
 
 	// declare zookeeper instance to access ZooKeeper ensemble
 	private ZooKeeper zoo;
-	final CountDownLatch connectedSignal = new CountDownLatch(1);
+	final static CountDownLatch connectedSignal = new CountDownLatch(1);
 	static String pathScore = "/ZookeeperParentScore";
 	static String pathStatus = "/ZookeeperParentStatus";
 	static Stat stat;
+	static int n = 0;
 
 	// Method to connect zookeeper ensemble.
 	public ZooKeeper connect(String host) throws IOException, InterruptedException {
@@ -39,6 +40,8 @@ public class GameWatcher implements Watcher {
 				if (we.getState() == KeeperState.SyncConnected) {
 					connectedSignal.countDown();
 				}
+				System.out.println("Watching...");
+				//displayScores();
 			}
 		});
 
@@ -73,44 +76,53 @@ public class GameWatcher implements Watcher {
 		}
 	}
 
-	/*
-	 * public void run() { try { synchronized (this) { while (!dm.dead) { wait(); }
-	 * } } catch (InterruptedException e) { } }
-	 */
-
-	public static void main(String[] args) {
-		String ip = args[0];
-		int n = Integer.parseInt(args[1]);
-		TreeMap<Integer, String> tmap = new TreeMap<Integer, String>(Collections.reverseOrder());
+	public static void displayScores() {
 		try {
-			conn = new ZkConnect();
-			zk = conn.connect(ip);
-			init();
 			List<String> onlineNodes = zk.getChildren(pathStatus, true);
 			List<String> Scores = zk.getChildren(pathScore, true);
+			TreeMap<Integer, String> tmapScorewise = new TreeMap<Integer, String>(Collections.reverseOrder());
+			TreeMap<Integer, String> tmapTimewise = new TreeMap<Integer, String>(Collections.reverseOrder());
+
+			// Recent Scores
 			for (String str : Scores) {
 				// System.out.println(str);
-				String playerName = str.substring(0, str.indexOf(":"));
-				int score = Integer.parseInt(str.substring(str.indexOf(":") + 1, str.lastIndexOf(":")));
-				tmap.put(score, playerName);
+				String playerNameScore = str.substring(0, str.lastIndexOf(":"));
+				int score = Integer.parseInt(str.substring(str.lastIndexOf(":") + 1));
+				tmapTimewise.put(score, playerNameScore);
+				// System.out.print("\n" + playerNameScore + "\t" + score);
+			}
+
+			// System.out.println("\n");
+			System.out.println("Recent scores\n--------------");
+			int count = 0;
+			for (Map.Entry<Integer, String> entry : tmapTimewise.entrySet()) {
+				if (count >= n)
+					break;
+				String playerNameScore = entry.getValue();
+				String playerName = playerNameScore.substring(0, playerNameScore.indexOf(":"));
+				int score = Integer.parseInt(playerNameScore.substring(playerNameScore.indexOf(":") + 1));
 				System.out.print("\n" + playerName + "\t" + score);
 				if (onlineNodes.contains(playerName)) {
 					System.out.print(" **");
 				}
+				count++;
 			}
-			// Recent Scores
-			/*
-			 * System.out.println("Recent scores\n--------------"); int count = 0; for
-			 * (Map.Entry<Integer, String> entry : tmap.entrySet()) { if (count >= n) break;
-			 * String playerName = entry.getValue(); System.out.print("\n" + playerName +
-			 * "\t" + entry.getKey()); if (onlineNodes.contains(playerName)) {
-			 * System.out.print(" **"); } count++; }
-			 */
+
 			System.out.println("\n");
 			// Highest Scores
-			int count = 0;
+			for (String str : Scores) {
+				// System.out.println(str);
+				String playerName = str.substring(0, str.indexOf(":"));
+				int score = Integer.parseInt(str.substring(str.indexOf(":") + 1, str.lastIndexOf(":")));
+				tmapScorewise.put(score, playerName);
+				// System.out.print("\n" + playerName + "\t" + score);
+				// if (onlineNodes.contains(playerName)) {
+				// System.out.print(" **");
+				// }
+			}
+			count = 0;
 			System.out.println("Highest scores\n--------------");
-			for (Map.Entry<Integer, String> entry : tmap.entrySet()) {
+			for (Map.Entry<Integer, String> entry : tmapScorewise.entrySet()) {
 				if (count >= n)
 					break;
 				String playerName = entry.getValue();
@@ -121,16 +133,42 @@ public class GameWatcher implements Watcher {
 				count++;
 			}
 			System.out.println("\n");
-			conn.close();
-		} catch (Exception e) {
-			System.out.println(e.getMessage()); // Catch error message
+		} catch (KeeperException | InterruptedException e) {
+			e.printStackTrace();
 		}
 	}
 
-	@Override
-	public void process(WatchedEvent event) {
-		// TODO Auto-generated method stub
+	/*
+	 * public void run() { try { synchronized (this) { while (!dm.dead) { wait(); }
+	 * } } catch (InterruptedException e) { } }
+	 */
 
+	public static void main(String[] args) {
+		String ip = args[0];
+		n = Integer.parseInt(args[1]);
+
+		try {
+			conn = new ZkConnect();
+			zk = conn.connect(ip);
+			init();//creates parent nodes
+			while (true) {
+				@SuppressWarnings("unused")
+				List<String> temp = zk.getChildren(pathStatus,new Watcher() {
+
+					public void process(WatchedEvent we) {
+
+						if (we.getState() == KeeperState.SyncConnected) {
+							connectedSignal.countDown();
+						}
+						//System.out.println("Watching...");
+						displayScores();
+					}
+				});
+			}
+			// conn.close();
+		} catch (Exception e) {
+			System.out.println(e.getMessage()); // Catch error message
+		}
 	}
 
 }
