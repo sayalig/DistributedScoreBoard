@@ -105,6 +105,7 @@ public class Player {
 			public void run() {
 				try {
 					playerOffline(name);
+					//deleteRecursive
 					conn.close();
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -114,7 +115,7 @@ public class Player {
 
 		try {
 			conn = new ZkConnect();
-			zk = conn.connect("localhost");// switch to IP
+			zk = conn.connect(ip);// switch to IP
 			init();
 			playerOnline(name);
 
@@ -131,7 +132,7 @@ public class Player {
 					System.out.println(nodeName);
 				}
 				sc.close();
-				playerOffline(name);
+//				playerOffline(name);
 			}
 			/*
 			 * Automated Mode
