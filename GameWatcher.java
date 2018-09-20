@@ -1,8 +1,9 @@
 import java.io.IOException;
-import java.util.Random;
-import java.util.Scanner;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -13,8 +14,7 @@ import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 
-public class Player {
-	final static double sd = 9.99;
+public class GameWatcher {
 
 	// create static instance for zookeeper class.
 	private static ZooKeeper zk;
@@ -24,20 +24,27 @@ public class Player {
 
 	// declare zookeeper instance to access ZooKeeper ensemble
 	private ZooKeeper zoo;
-	final CountDownLatch connectedSignal = new CountDownLatch(1);
-	static Stat stat;
+	//final static CountDownLatch connectedSignal = new CountDownLatch(1);
 	static String pathScore = "/ZookeeperParentScore";
 	static String pathStatus = "/ZookeeperParentStatus";
-	static byte[] dataNode = "Zookeeper Dir for Player".getBytes();
+	static Stat stat;
+	static int n = 0;
 
+	// Method to connect zookeeper ensemble.
 	public ZooKeeper connect(String host) throws IOException, InterruptedException {
+		CountDownLatch connectedSignal = new CountDownLatch(1);
 		zoo = new ZooKeeper(host, 5000, new Watcher() {
+
 			public void process(WatchedEvent we) {
+
 				if (we.getState() == KeeperState.SyncConnected) {
 					connectedSignal.countDown();
 				}
+				System.out.println("Watching...");
+				//displayScores();
 			}
 		});
+
 		connectedSignal.await();
 		return zoo;
 	}
@@ -47,13 +54,8 @@ public class Player {
 		zoo.close();
 	}
 
-	// Method to create parent nodes
 	public static void create(String path, byte[] data) throws KeeperException, InterruptedException {
 		zk.create(path, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-	}
-
-	public static void createPlayerNodes(String path, byte[] data) throws KeeperException, InterruptedException {
-		zk.create(path, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
 	}
 
 	// Method to initialize Parent Score and Parent Status
@@ -62,105 +64,168 @@ public class Player {
 		byte[] dataScore = "Zookeeper Parent Dir for Score".getBytes();
 		byte[] dataStatus = "Zookeeper Parent Dir for Status".getBytes();
 
-		//Parent Score Node
+		// Parent Score Node
 		stat = zk.exists(pathScore, true);
-		if (stat != null) {
-			System.out.println("Node exists and the node version is " + stat.getVersion());
-		} else {
-			System.out.println("Creating Parent Score Node");
+		if (stat == null) {
 			create(pathScore, dataScore);
 		}
-		//Parent Status Node
+		// Parent Status Node
 		stat = zk.exists(pathStatus, true);
-		if (stat != null) {
-			System.out.println("Node exists and the node version is " + stat.getVersion());
-		} else {
-			System.out.println("Creating Parent Status Node");
+		if (stat == null) {
 			create(pathStatus, dataStatus);
 		}
 	}
 
-	public static void playerOnline(String name) throws KeeperException, InterruptedException {
-		String nodeName = pathStatus + "/" + name;
-		stat = zk.exists(nodeName, true);
-		if (stat != null) {
-			System.out.println("Node already exists. Exiting...");
-			System.exit(0);
-		} else {
-			System.out.println("Creating Node "+nodeName);
-			create(nodeName, dataNode);
+	public static void displayScores() {
+		try {
+			List<String> onlineNodes = zk.getChildren(pathStatus, false);
+			List<String> Scores = zk.getChildren(pathScore, false);
+			TreeMap<Integer, String> tmapScorewise = new TreeMap<Integer, String>(Collections.reverseOrder());
+			TreeMap<Integer, String> tmapTimewise = new TreeMap<Integer, String>(Collections.reverseOrder());
+
+			// Recent Scores
+			for (String str : Scores) {
+				// System.out.println(str);
+				String playerNameScore = str.substring(0, str.lastIndexOf(":"));
+				int score = Integer.parseInt(str.substring(str.lastIndexOf(":") + 1));
+				tmapTimewise.put(score, playerNameScore);
+				// System.out.print("\n" + playerNameScore + "\t" + score);
+			}
+
+			// System.out.println("\n");
+			System.out.println("Recent scores\n--------------");
+			int count = 0;
+			for (Map.Entry<Integer, String> entry : tmapTimewise.entrySet()) {
+				if (count >= n)
+					break;
+				String playerNameScore = entry.getValue();
+				String playerName = playerNameScore.substring(0, playerNameScore.indexOf(":"));
+				int score = Integer.parseInt(playerNameScore.substring(playerNameScore.indexOf(":") + 1));
+				System.out.print("\n" + playerName + "\t" + score);
+				if (onlineNodes.contains(playerName)) {
+					System.out.print(" **");
+				}
+				count++;
+			}
+
+			System.out.println("\n");
+			// Highest Scores
+			for (String str : Scores) {
+				// System.out.println(str);
+				String playerName = str.substring(0, str.indexOf(":"));
+				int score = Integer.parseInt(str.substring(str.indexOf(":") + 1, str.lastIndexOf(":")));
+				tmapScorewise.put(score, playerName);
+				// System.out.print("\n" + playerName + "\t" + score);
+				// if (onlineNodes.contains(playerName)) {
+				// System.out.print(" **");
+				// }
+			}
+			count = 0;
+			System.out.println("Highest scores\n--------------");
+			for (Map.Entry<Integer, String> entry : tmapScorewise.entrySet()) {
+				if (count >= n)
+					break;
+				String playerName = entry.getValue();
+				System.out.print("\n" + playerName + "\t" + entry.getKey());
+				if (onlineNodes.contains(playerName)) {
+					System.out.print(" **");
+				}
+				count++;
+			}
+			System.out.println("\n");
+		} catch (KeeperException | InterruptedException e) {
+			e.printStackTrace();
 		}
 	}
 
-	public static void playerOffline(String name) throws InterruptedException, KeeperException {
-		String nodeName = pathStatus + "/" + name;
-		zk.delete(nodeName, zk.exists(nodeName, true).getVersion());
-		System.out.println(name + " deleted");
-	}
+	/*
+	 * public void run() { try { synchronized (this) { while (!dm.dead) { wait(); }
+	 * } } catch (InterruptedException e) { } }
+	 */
 
 	public static void main(String[] args) {
 		String ip = args[0];
-		String name = args[1];
-		Runtime.getRuntime().addShutdownHook(new Thread() {
-			public void run() {
-				try {
-					playerOffline(name);
-					conn.close();
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		});
+		n = Integer.parseInt(args[1]);
 
 		try {
 			conn = new ZkConnect();
-			zk = conn.connect(ip);// switch to IP
-			init();
-			playerOnline(name);
+			zk = conn.connect(ip);
+			init();//creates parent nodes
+			while (true) {
+				CountDownLatch connectedSignal = new CountDownLatch(1);
+				@SuppressWarnings("unused")
+				List<String> temp = zk.getChildren(pathScore,new Watcher() {
 
-			/*
-			 * Interactive Mode
-			 */
-			if (args.length < 3) {
-				System.out.println("Interactive Mode:");
-				Scanner sc = new Scanner(System.in);
-				while (sc.hasNext()) {
-					String currScore = sc.nextLine();
-					String nodeName = pathScore + "/" + name + ":" + currScore + ":";
-					createPlayerNodes(nodeName, currScore.getBytes());
-					System.out.println(nodeName);
-				}
-				sc.close();
-//				playerOffline(name);
-			}
-			/*
-			 * Automated Mode
-			 */
-			else {// its a score post
-				int count = Integer.parseInt(args[2]);
-				int delay = Integer.parseInt(args[3]);
-				int score = Integer.parseInt(args[4]);
-				System.out.println("count = " + count + " " + "delay = " + delay + " " + " score = " + score);
-				Random r = new Random();
-				for (int n = 0; n < count; n++) {
-					// Do Normal distributon
-					int currScoreNum = (int) (r.nextGaussian() * sd + score);
-					String currScore = Integer.toString(currScoreNum);
-					//System.out.println(n);
-					String nodeName = pathScore + "/" + name + ":" + currScore + ":";
-					createPlayerNodes(nodeName, currScore.getBytes());
-					System.out.println(nodeName);
-					TimeUnit.SECONDS.sleep((long) (r.nextGaussian() + delay));
-				}
-			}
-			// delete parent node
-			// zk.delete(path, zk.exists(path, true).getVersion());
+					public void process(WatchedEvent we) {
 
-			
+						if (we.getState() == KeeperState.SyncConnected) {
+							connectedSignal.countDown();
+						}
+						//System.out.println("Watching...");
+						displayScores();
+						try {
+							connectedSignal.await();
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}
+				});
+				/*
+				@SuppressWarnings("unused")
+				List<String> temp1 = zk.getChildren(pathStatus,new Watcher() {
+
+					public void process(WatchedEvent we) {
+
+						if (we.getState() == KeeperState.SyncConnected) {
+							connectedSignal.countDown();
+						}
+						//System.out.println("Watching...");
+						displayScores();
+						try {
+							connectedSignal.await();
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}
+				});
+				*/
+				connectedSignal.await();
+				
+				/*
+				List<String> temp = zk.getChildren(pathStatus, new Watcher() {
+					
+		               public void process(WatchedEvent we) {
+							
+		                  if (we.getType() == Event.EventType.None) {
+		                     switch(we.getState()) {
+		                        case Expired:
+		                        connectedSignal.countDown();
+		                        break;
+		                     }
+									
+		                  } else {
+		                     //String path = "/MyFirstZnode";
+									
+		                     try {
+		                    	 List<String> temp1 = zk.getChildren(pathStatus, false);
+		                        displayScores();
+		                        connectedSignal.countDown();
+									
+		                     } catch(Exception ex) {
+		                        System.out.println(ex.getMessage());
+		                     }
+		                  }
+		               }
+		            });*/
+				
+				
+			}
+			// conn.close();
 		} catch (Exception e) {
 			System.out.println(e.getMessage()); // Catch error message
 		}
+	}
 
-	}// end of main
-
-}// end of class
+}
