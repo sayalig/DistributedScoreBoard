@@ -115,9 +115,10 @@ public class GameWatcher implements Watcher {
 	
 	public GameWatcher() throws KeeperException, InterruptedException {
 		@SuppressWarnings("unused")
-		List<String> temp = zk.getChildren(pathScore, this);
+		List<String> onlineNodes = zk.getChildren(pathStatus, this);
 		@SuppressWarnings("unused")
-		List<String> temp1 = zk.getChildren(pathStatus, this);
+		List<String> Score = zk.getChildren(pathScore, this);
+		displayScores(onlineNodes, Score);
 	}
 
 	public static void main(String[] args) {
