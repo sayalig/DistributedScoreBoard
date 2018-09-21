@@ -60,23 +60,17 @@ public class Player {
 	public static void init() throws KeeperException, InterruptedException {
 
 		byte[] dataScore = "Zookeeper Parent Dir for Score".getBytes();
-		byte[] dataStatus = "Zookeeper Parent Dir for Status".getBytes();
+		// byte[] dataStatus = "Zookeeper Parent Dir for Status".getBytes();
 
-		//Parent Score Node
+		// Parent Score Node
 		stat = zk.exists(pathScore, true);
-		if (stat != null) {
-			System.out.println("Node exists and the node version is " + stat.getVersion());
-		} else {
-			System.out.println("Creating Parent Score Node");
+		if (stat == null) {
 			create(pathScore, dataScore);
 		}
-		//Parent Status Node
+		// Parent Status Node
 		stat = zk.exists(pathStatus, true);
-		if (stat != null) {
-			System.out.println("Node exists and the node version is " + stat.getVersion());
-		} else {
-			System.out.println("Creating Parent Status Node");
-			create(pathStatus, dataStatus);
+		if (stat == null) {
+			create(pathStatus, dataScore);
 		}
 	}
 
@@ -84,10 +78,10 @@ public class Player {
 		String nodeName = pathStatus + "/" + name;
 		stat = zk.exists(nodeName, true);
 		if (stat != null) {
-			System.out.println("Node already exists. Exiting...");
+			System.out.println("Node already online. Terminating player...");
 			System.exit(0);
 		} else {
-			System.out.println("Creating Node "+nodeName);
+			// System.out.println("Creating Node "+nodeName);
 			create(nodeName, dataNode);
 		}
 	}
@@ -95,7 +89,7 @@ public class Player {
 	public static void playerOffline(String name) throws InterruptedException, KeeperException {
 		String nodeName = pathStatus + "/" + name;
 		zk.delete(nodeName, zk.exists(nodeName, true).getVersion());
-		System.out.println(name + " deleted");
+		// System.out.println(name + " deleted");
 	}
 
 	public static void main(String[] args) {
@@ -131,32 +125,36 @@ public class Player {
 					System.out.println(nodeName);
 				}
 				sc.close();
-//				playerOffline(name);
 			}
 			/*
 			 * Automated Mode
 			 */
-			else {// its a score post
+			else {
 				int count = Integer.parseInt(args[2]);
 				int delay = Integer.parseInt(args[3]);
 				int score = Integer.parseInt(args[4]);
-				System.out.println("count = " + count + " " + "delay = " + delay + " " + " score = " + score);
-				Random r = new Random();
-				for (int n = 0; n < count; n++) {
-					// Do Normal distributon
-					int currScoreNum = (int) (r.nextGaussian() * sd + score);
-					String currScore = Integer.toString(currScoreNum);
-					//System.out.println(n);
-					String nodeName = pathScore + "/" + name + ":" + currScore + ":";
-					createPlayerNodes(nodeName, currScore.getBytes());
-					System.out.println(nodeName);
-					TimeUnit.SECONDS.sleep((long) (r.nextGaussian() + delay));
+				if (count < 1) {
+					System.out.println("Invalid count value. Try again....");
+				} else if (score < 1) {
+					System.out.println("Invalid score value. Try again....");
+				} else if (delay < 1) {
+					System.out.println("Invalid delay value. Try again....");
+				} else {
+					System.out.println("count = " + count + " " + "delay = " + delay + " " + " score = " + score);
+					Random r = new Random();
+					for (int n = 0; n < count; n++) {
+						int currScoreNum = (int) (r.nextGaussian() * sd + score);
+						if (currScoreNum < 0)
+							currScoreNum *= (-1);
+						String currScore = Integer.toString(currScoreNum);
+						String nodeName = pathScore + "/" + name + ":" + currScore + ":";
+						createPlayerNodes(nodeName, currScore.getBytes());
+						System.out.println(nodeName);
+						TimeUnit.SECONDS.sleep((long) (r.nextGaussian() + delay));
+					}
 				}
 			}
-			// delete parent node
-			// zk.delete(path, zk.exists(path, true).getVersion());
 
-			
 		} catch (Exception e) {
 			System.out.println(e.getMessage()); // Catch error message
 		}
