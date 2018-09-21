@@ -14,7 +14,7 @@ import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 
 public class Player {
-	final static double sd = 9.99;
+	final static double sd_score = 9.99,sd_delay=1.5;
 
 	// create static instance for zookeeper class.
 	private static ZooKeeper zk;
@@ -140,17 +140,18 @@ public class Player {
 				} else if (delay < 1) {
 					System.out.println("Invalid delay value. Try again....");
 				} else {
-					System.out.println("count = " + count + " " + "delay = " + delay + " " + " score = " + score);
+					//System.out.println("count = " + count + " " + "delay = " + delay + " " + " score = " + score);
 					Random r = new Random();
 					for (int n = 0; n < count; n++) {
-						int currScoreNum = (int) (r.nextGaussian() * sd + score);
+						int currScoreNum = (int) (r.nextGaussian() * sd_score + score);
 						if (currScoreNum < 0)
 							currScoreNum *= (-1);
 						String currScore = Integer.toString(currScoreNum);
 						String nodeName = pathScore + "/" + name + ":" + currScore + ":";
-						createPlayerNodes(nodeName, currScore.getBytes());
-						System.out.println(nodeName);
-						TimeUnit.SECONDS.sleep((long) (r.nextGaussian() + delay));
+						createPlayerNodes(nodeName, currScore.getBytes());						
+						long del=(long) (r.nextGaussian()*sd_delay + delay);
+						//System.out.println(nodeName+ " " + del);
+						TimeUnit.SECONDS.sleep(del);
 					}
 				}
 			}
